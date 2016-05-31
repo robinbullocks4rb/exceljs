@@ -22,9 +22,9 @@
     "bluebird": "*",
     "fast-csv": "0.5.7",
     "moment": "2.11.2",
-    "node-unzip-2": "^0.2.1",
     "sax": "^0.6.0",
-    "underscore": "1.4.4"
+    "underscore": "1.4.4",
+    "unzip": "https://github.com/robinbullocks4rb/node-unzip-2/tarball/master"
   },
   "devDependencies": {
     "chai": "*",
