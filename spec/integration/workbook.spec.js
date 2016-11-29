@@ -1,13 +1,17 @@
 'use strict';
 
+var chai = require('chai');
+var expect = chai.expect;
+chai.use(require('chai-datetime'));
+
 var stream = require('stream');
-var expect = require('chai').expect;
 var bluebird = require('bluebird');
-var fs = require('fs');
-var fsa = bluebird.promisifyAll(fs);
-var _ = require('underscore');
+var _ = require('lodash');
 var Excel = require('../../excel');
-var testUtils = require('./../testutils');
+var testUtils = require('./../utils/index');
+
+var TEST_XLSX_FILE_NAME = './spec/out/wb.test.xlsx';
+var TEST_CSV_FILE_NAME = './spec/out/wb.test.csv';
 
 // =============================================================================
 // Sample Data
@@ -21,32 +25,22 @@ describe('Workbook', function() {
 
   describe('Serialise', function() {
 
-    after(function() {
-      function deleteFile(filename) {
-        return fsa.unlinkAsync(filename)
-          .catch(function() { });
-      }
-
-      return bluebird.all([
-        deleteFile('./wb.test.xlsx'),
-        deleteFile('./wb.test.csv')
-      ]);
-    });
-
-    it('creates sheets and saves with correct names', function() {
+    it('sheets with correct names', function() {
       var wb = new Excel.Workbook();
       var ws1 = wb.addWorksheet('Hello, World!');
       expect(ws1.name).to.equal('Hello, World!');
+      ws1.getCell('A1').value = 'Hello, World!';
 
       var ws2 = wb.addWorksheet();
       expect(ws2.name).to.match(/sheet\d+/);
+      ws2.getCell('A1').value = ws2.name;
 
-      var ws3 = wb.addWorksheet('This & That');
+      wb.addWorksheet('This & That');
 
-      return wb.xlsx.writeFile('./wb.test.xlsx')
+      return wb.xlsx.writeFile(TEST_XLSX_FILE_NAME)
         .then(function() {
           var wb2 = new Excel.Workbook();
-          return wb2.xlsx.readFile('./wb.test.xlsx');
+          return wb2.xlsx.readFile(TEST_XLSX_FILE_NAME);
         })
         .then(function(wb2) {
           expect(wb2.getWorksheet('Hello, World!')).to.be.ok;
@@ -54,81 +48,126 @@ describe('Workbook', function() {
         });
     });
 
-    it('serializes and deserializes to xlsx file properly', function() {
-
-      var wb = testUtils.createTestBook(true, Excel.Workbook);
-      //fs.writeFileSync('./testmodel.json', JSON.stringify(wb.model, null, '    '));
-
-      return wb.xlsx.writeFile('./wb.test.xlsx')
+    it('creator, lastModifiedBy, etc', function() {
+      var wb = new Excel.Workbook();
+      var ws = wb.addWorksheet('Hello');
+      ws.getCell('A1').value = 'World!';
+      wb.creator = 'Foo';
+      wb.lastModifiedBy = 'Bar';
+      wb.created = new Date(2016,0,1);
+      wb.modified = new Date(2016,4,19);
+      return wb.xlsx.writeFile(TEST_XLSX_FILE_NAME)
         .then(function() {
           var wb2 = new Excel.Workbook();
-          return wb2.xlsx.readFile('./wb.test.xlsx');
+          return wb2.xlsx.readFile(TEST_XLSX_FILE_NAME);
         })
         .then(function(wb2) {
-          testUtils.checkTestBook(wb2, 'xlsx', true);
+          expect(wb2.creator).to.equal(wb.creator);
+          expect(wb2.lastModifiedBy).to.equal(wb.lastModifiedBy);
+          expect(wb2.created).to.equalDate(wb.created);
+          expect(wb2.modified).to.equalDate(wb.modified);
         });
     });
 
-    it('serializes and deserializes dataValidations', function() {
+    it('company, manager, etc', function() {
       var wb = new Excel.Workbook();
-      testUtils.addDataValidationSheet(wb);
-
-      return wb.xlsx.writeFile('./wb.test.xlsx')
+      var ws = wb.addWorksheet('Hello');
+      ws.getCell('A1').value = 'World!';
+      wb.company = 'Cyber Sapiens, Ltd';
+      wb.manager = 'Guyon Roche';
+      return wb.xlsx.writeFile(TEST_XLSX_FILE_NAME)
         .then(function() {
           var wb2 = new Excel.Workbook();
-          return wb2.xlsx.readFile('./wb.test.xlsx');
+          return wb2.xlsx.readFile(TEST_XLSX_FILE_NAME);
         })
         .then(function(wb2) {
-          testUtils.checkDataValidationSheet(wb2);
+          expect(wb2.company).to.equal(wb.company);
+          expect(wb2.manager).to.equal(wb.manager);
         });
     });
 
-
-    it('serializes row styles and columns properly', function() {
+    it('title, subject, etc', function() {
       var wb = new Excel.Workbook();
-      var ws = wb.addWorksheet('blort');
+      var ws = wb.addWorksheet('Hello');
+      ws.getCell('A1').value = 'World!';
+      wb.title = 'the title';
+      wb.subject = 'the subject';
+      wb.keywords = 'the keywords';
+      wb.category = 'the category';
+      wb.description = 'the description';
+      return wb.xlsx.writeFile(TEST_XLSX_FILE_NAME)
+        .then(function() {
+          var wb2 = new Excel.Workbook();
+          return wb2.xlsx.readFile(TEST_XLSX_FILE_NAME);
+        })
+        .then(function(wb2) {
+          expect(wb2.title).to.equal(wb.title);
+          expect(wb2.subject).to.equal(wb.subject);
+          expect(wb2.keywords).to.equal(wb.keywords);
+          expect(wb2.category).to.equal(wb.category);
+          expect(wb2.description).to.equal(wb.description);
+        });
+    });
+
+    it('language and revision', function() {
+      var wb = new Excel.Workbook();
+      var ws = wb.addWorksheet('Hello');
+      ws.getCell('A1').value = 'World!';
+      wb.language = 'Klingon';
+      wb.revision = new Date(Date.UTC(2016,10,1,12));
+      return wb.xlsx.writeFile(TEST_XLSX_FILE_NAME)
+        .then(function() {
+          var wb2 = new Excel.Workbook();
+          return wb2.xlsx.readFile(TEST_XLSX_FILE_NAME);
+        })
+        .then(function(wb2) {
+          expect(wb2.language).to.equal(wb.language);
+          expect(wb2.revision).to.equalDate(wb.revision);
+        });
+    });
+
+    it('xlsx file', function() {
+
+      var wb = testUtils.createTestBook(new Excel.Workbook(), 'xlsx');
+
+      return wb.xlsx.writeFile(TEST_XLSX_FILE_NAME)
+        .then(function() {
+          var wb2 = new Excel.Workbook();
+          return wb2.xlsx.readFile(TEST_XLSX_FILE_NAME);
+        })
+        .then(function(wb2) {
+          testUtils.checkTestBook(wb2, 'xlsx');
+        });
+    });
+
+    it('dataValidations', function() {
+      var wb = testUtils.createTestBook(new Excel.Workbook(), 'xlsx', ['dataValidations']);
+
+      return wb.xlsx.writeFile(TEST_XLSX_FILE_NAME)
+        .then(function() {
+          var wb2 = new Excel.Workbook();
+          return wb2.xlsx.readFile(TEST_XLSX_FILE_NAME);
+        })
+        .then(function(wb2) {
+          testUtils.checkTestBook(wb2, 'xlsx', ['dataValidations']);
+        });
+    });
+
+    it("empty string", function() {
+      var wb = new Excel.Workbook();
+      var ws = wb.addWorksheet();
 
       ws.columns = [
-        { header: 'A1', width: 10 },
-        { header: 'B1', width: 20, style: { font: testUtils.styles.fonts.comicSansUdB16, alignment: testUtils.styles.alignments[1].alignment } },
-        { header: 'C1', width: 30 }
+        { key: "id", width: 10 },
+        { key: "name", width: 32 }
       ];
 
-      ws.getRow(2).font = testUtils.styles.fonts.broadwayRedOutline20;
+      ws.addRow({id: 1, name: ''});
 
-      ws.getCell('A2').value = 'A2';
-      ws.getCell('B2').value = 'B2';
-      ws.getCell('C2').value = 'C2';
-      ws.getCell('A3').value = 'A3';
-      ws.getCell('B3').value = 'B3';
-      ws.getCell('C3').value = 'C3';
-
-      return wb.xlsx.writeFile('./wb.test.xlsx')
-        .then(function() {
-          var wb2 = new Excel.Workbook();
-          return wb2.xlsx.readFile('./wb.test.xlsx');
-        })
-        .then(function(wb2) {
-          var ws2 = wb2.getWorksheet('blort');
-          _.each(['A1', 'B1', 'C1', 'A2', 'B2', 'C2', 'A3', 'B3', 'C3'], function(address) {
-            expect(ws2.getCell(address).value).to.equal(address);
-          });
-          expect(ws2.getCell('B1').font).to.deep.equal(testUtils.styles.fonts.comicSansUdB16);
-          expect(ws2.getCell('B1').alignment).to.deep.equal(testUtils.styles.alignments[1].alignment);
-          expect(ws2.getCell('A2').font).to.deep.equal(testUtils.styles.fonts.broadwayRedOutline20);
-          expect(ws2.getCell('B2').font).to.deep.equal(testUtils.styles.fonts.broadwayRedOutline20);
-          expect(ws2.getCell('C2').font).to.deep.equal(testUtils.styles.fonts.broadwayRedOutline20);
-          expect(ws2.getCell('B3').font).to.deep.equal(testUtils.styles.fonts.comicSansUdB16);
-          expect(ws2.getCell('B3').alignment).to.deep.equal(testUtils.styles.alignments[1].alignment);
-
-          expect(ws2.getColumn(2).font).to.deep.equal(testUtils.styles.fonts.comicSansUdB16);
-          expect(ws2.getColumn(2).alignment).to.deep.equal(testUtils.styles.alignments[1].alignment);
-
-          expect(ws2.getRow(2).font).to.deep.equal(testUtils.styles.fonts.broadwayRedOutline20);
-        });
+      return wb.xlsx.writeFile(TEST_XLSX_FILE_NAME);
     });
-
-    it('serializes and deserializes a lot of sheets to xlsx file properly', function() {
+    
+    it('a lot of sheets to xlsx file', function() {
       this.timeout(10000);
 
       var i;
@@ -139,10 +178,10 @@ describe('Workbook', function() {
         var ws = wb.addWorksheet('sheet' + i);
         ws.getCell('A1').value = i;
       }
-      return wb.xlsx.writeFile('./wb.test.xlsx')
+      return wb.xlsx.writeFile(TEST_XLSX_FILE_NAME)
         .then(function() {
           var wb2 = new Excel.Workbook();
-          return wb2.xlsx.readFile('./wb.test.xlsx');
+          return wb2.xlsx.readFile(TEST_XLSX_FILE_NAME);
         })
         .then(function(wb2) {
           for (i = 1; i <= numSheets; i++) {
@@ -152,38 +191,16 @@ describe('Workbook', function() {
           }
         });
     });
-
-    it('deserializes in-cell formats properly in xlsx file', function() {
-
-      // Stream from input string
-      var testData = new Buffer(richTextSample, 'base64');
-
-      // Initiate the source
-      var bufferStream = new stream.PassThrough();
-
-      // Write your buffer
-      bufferStream.write(testData);
-      bufferStream.end();
-
-      var wb = new Excel.Workbook();
-      return wb.xlsx.read(bufferStream)
-          .then(function () {
-            var ws = wb.worksheets[0];
-            expect(ws.getCell("A1").value).to.deep.equal(richTextSample_A1);
-            expect(ws.getCell("A1").text).to.equal(ws.getCell("A2").value);
-          });
-    });
-
-    it('serializes and deserialises to csv file properly', function() {
+    
+    it('csv file', function() {
       this.timeout(5000);
 
-      var wb = testUtils.createTestBook(true, Excel.Workbook);
-      //fs.writeFileSync('./testmodel.json', JSON.stringify(wb.model, null, '    '));
+      var wb = testUtils.createTestBook(new Excel.Workbook(), 'csv');
 
-      return wb.csv.writeFile('./wb.test.csv')
+      return wb.csv.writeFile(TEST_CSV_FILE_NAME)
         .then(function() {
           var wb2 = new Excel.Workbook();
-          return wb2.csv.readFile('./wb.test.csv')
+          return wb2.csv.readFile(TEST_CSV_FILE_NAME)
             .then(function() {
               return wb2;
             });
@@ -193,7 +210,7 @@ describe('Workbook', function() {
         });
     });
 
-    it('serialises and deserialises defined names', function() {
+    it('defined names', function() {
       var wb1 = new Excel.Workbook();
       var ws1a = wb1.addWorksheet('blort');
       var ws1b = wb1.addWorksheet('foo');
@@ -239,10 +256,10 @@ describe('Workbook', function() {
       assign(ws1a, 'G2', 1, ['once', 'twice']);
       ws1a.getCell('G2').removeName('once');
 
-      return wb1.xlsx.writeFile('./wb.test.xlsx')
+      return wb1.xlsx.writeFile(TEST_XLSX_FILE_NAME)
         .then(function() {
           var wb2 = new Excel.Workbook();
-          return wb2.xlsx.readFile('./wb.test.xlsx');
+          return wb2.xlsx.readFile(TEST_XLSX_FILE_NAME);
         })
         .then(function(wb2) {
           var ws2a = wb2.getWorksheet('blort');
@@ -315,10 +332,10 @@ describe('Workbook', function() {
 
         ws.mergeCells('B2:C3');
 
-        return wb.xlsx.writeFile('./wb.test.xlsx')
+        return wb.xlsx.writeFile(TEST_XLSX_FILE_NAME)
           .then(function() {
             var wb2 = new Excel.Workbook();
-            return wb2.xlsx.readFile('./wb.test.xlsx');
+            return wb2.xlsx.readFile(TEST_XLSX_FILE_NAME);
           })
           .then(function(wb2) {
             var ws2 = wb2.getWorksheet('blort');
@@ -335,7 +352,7 @@ describe('Workbook', function() {
           });
       });
 
-      it('serialises and deserialises styles', function() {
+      it('styles', function() {
         var wb = new Excel.Workbook();
         var ws = wb.addWorksheet('blort');
 
@@ -351,10 +368,10 @@ describe('Workbook', function() {
         // expecting styles to be copied (see worksheet spec)
         ws.mergeCells('B2:C3');
 
-        return wb.xlsx.writeFile('./wb.test.xlsx')
+        return wb.xlsx.writeFile(TEST_XLSX_FILE_NAME)
           .then(function() {
             var wb2 = new Excel.Workbook();
-            return wb2.xlsx.readFile('./wb.test.xlsx');
+            return wb2.xlsx.readFile(TEST_XLSX_FILE_NAME);
           })
           .then(function(wb2) {
             var ws2 = wb2.getWorksheet('blort');
@@ -387,12 +404,33 @@ describe('Workbook', function() {
     });
   });
 
-  it('serialises and deserialises by model', function() {
-    var wb = testUtils.createTestBook(false, Excel.Workbook);
+  it('spliced meat and ham', function() {
+    var wb = new Excel.Workbook();
+    var sheets = [
+      'splice.rows.removeOnly',
+      'splice.rows.insertFewer',
+      'splice.rows.insertSame',
+      'splice.rows.insertMore',
+      'splice.columns.removeOnly',
+      'splice.columns.insertFewer',
+      'splice.columns.insertSame',
+      'splice.columns.insertMore'
+    ];
+    var options = {
+      checkBadAlignments: false,
+      checkSheetProperties: false,
+      checkViews: false
+    };
 
-    return testUtils.cloneByModel(wb, Excel.Workbook)
-      .then(function(wb2) {
-        testUtils.checkTestBook(wb2, 'model');
+    testUtils.createTestBook(wb, 'xlsx', sheets, options);
+
+    return wb.xlsx.writeFile(TEST_XLSX_FILE_NAME)
+      .then(function () {
+        var wb2 = new Excel.Workbook();
+        return wb2.xlsx.readFile(TEST_XLSX_FILE_NAME);
+      })
+      .then(function (wb2) {
+        testUtils.checkTestBook(wb, 'xlsx', sheets, options);
       });
   });
 
@@ -426,5 +464,106 @@ describe('Workbook', function() {
       .finally(function() {
         expect(success).to.equal(2);
       });
+  });
+
+  describe('Sheet Views', function() {
+    it('frozen panes', function() {
+      var wb = new Excel.Workbook();
+      var ws = wb.addWorksheet('frozen');
+      ws.views = [
+        {state: 'frozen',xSplit: 2,ySplit: 3,topLeftCell: 'C4',activeCell: 'D5'},
+        {state: 'frozen',ySplit: 1},
+        {state: 'frozen',xSplit: 1}
+      ];
+      ws.getCell('A1').value = 'Let it Snow!';
+
+      return wb.xlsx.writeFile(TEST_XLSX_FILE_NAME)
+        .then(function() {
+          var wb2 = new Excel.Workbook();
+          return wb2.xlsx.readFile(TEST_XLSX_FILE_NAME);
+        })
+        .then(function(wb2) {
+          var ws2 = wb2.getWorksheet('frozen');
+          expect(ws2).to.be.ok;
+          expect(ws2.getCell('A1').value).to.equal('Let it Snow!');
+          expect(ws2.views).to.deep.equal([
+            {
+              workbookViewId: 0, state: 'frozen', xSplit: 2, ySplit: 3, topLeftCell: 'C4',
+              activeCell: 'D5', showRuler: true, showGridLines: true, showRowColHeaders: true, zoomScale: 100, zoomScaleNormal: 100
+            },
+            {
+              workbookViewId: 0, state: 'frozen', xSplit: 0, ySplit: 1, topLeftCell: 'A2',
+              showRuler: true, showGridLines: true, showRowColHeaders: true, zoomScale: 100, zoomScaleNormal: 100
+            },
+            {
+              workbookViewId: 0, state: 'frozen', xSplit: 1, ySplit: 0, topLeftCell: 'B1',
+              showRuler: true, showGridLines: true, showRowColHeaders: true, zoomScale: 100, zoomScaleNormal: 100
+            }
+          ])
+        });
+    });
+    it('serialises split panes', function() {
+      var wb = new Excel.Workbook();
+      var ws = wb.addWorksheet('split');
+      ws.views = [
+        {state: 'split',xSplit: 2000,ySplit: 3000,topLeftCell: 'C4',activeCell: 'D5', activePane: 'bottomRight'},
+        {state: 'split',ySplit: 1500, activePane: 'bottomLeft', topLeftCell: 'A10'},
+        {state: 'split',xSplit: 1500, activePane: 'topRight'}
+      ];
+      ws.getCell('A1').value = 'Do the splits!';
+  
+      return wb.xlsx.writeFile(TEST_XLSX_FILE_NAME)
+        .then(function() {
+          var wb2 = new Excel.Workbook();
+          return wb2.xlsx.readFile(TEST_XLSX_FILE_NAME);
+        })
+        .then(function(wb2) {
+          var ws2 = wb2.getWorksheet('split');
+          expect(ws2).to.be.ok;
+          expect(ws2.getCell('A1').value).to.equal('Do the splits!');
+          expect(ws2.views).to.deep.equal([
+            {
+              workbookViewId: 0, state: 'split', xSplit: 2000, ySplit: 3000, topLeftCell: 'C4', activeCell: 'D5', activePane: 'bottomRight',
+              showRuler: true, showGridLines: true, showRowColHeaders: true, zoomScale: 100, zoomScaleNormal: 100
+            },
+            {
+              workbookViewId: 0, state: 'split', xSplit: 0, ySplit: 1500, topLeftCell: 'A10', activePane: 'bottomLeft',
+              showRuler: true, showGridLines: true, showRowColHeaders: true, zoomScale: 100, zoomScaleNormal: 100
+            },
+            {
+              workbookViewId: 0, state: 'split', xSplit: 1500, ySplit: 0, topLeftCell: undefined, activePane: 'topRight',
+              showRuler: true, showGridLines: true, showRowColHeaders: true, zoomScale: 100, zoomScaleNormal: 100
+            }
+          ])
+        });
+    });
+    it('multiple book views', function() {
+      var wb = new Excel.Workbook();
+      wb.views = [
+        testUtils.views.book.visible,
+        testUtils.views.book.hidden
+      ];
+  
+      var ws1 = wb.addWorksheet('one');
+      ws1.views = [testUtils.views.sheet.frozen];
+  
+      var ws2 = wb.addWorksheet('two');
+      ws2.views = [testUtils.views.sheet.split];
+  
+      return wb.xlsx.writeFile(TEST_XLSX_FILE_NAME)
+        .then(function () {
+          var wb2 = new Excel.Workbook();
+          return wb2.xlsx.readFile(TEST_XLSX_FILE_NAME);
+        })
+        .then(function (wb2) {
+          expect(wb2.views).to.deep.equal(wb.views);
+  
+          var ws1b = wb2.getWorksheet('one');
+          expect(ws1b.views).to.deep.equal(ws1.views);
+  
+          var ws2b = wb2.getWorksheet('two');
+          expect(ws2b.views).to.deep.equal(ws2.views);
+        });
+    });
   });
 });

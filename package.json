@@ -1,14 +1,10 @@
 {
   "name": "exceljs",
-  "version": "0.2.8",
+  "version": "0.2.36",
   "description": "Excel Workbook Manager - Read and Write xlsx and csv Files.",
   "private": false,
   "license": "MIT",
-  "author": {
-    "name": "Guyon Roche",
-    "email": "cyber.sapiens@hotmail.com",
-    "url": "https://github.com/guyonroche/exceljs"
-  },
+  "author": "Guyon Roche",
   "repository": {
     "type": "git",
     "url": "https://github.com/guyonroche/exceljs.git"
@@ -31,16 +27,20 @@
     "defined names",
     "data validations",
     "rich text",
-    "in-cell format"
+    "in-cell format",
+    "outlineLevel",
+    "views",
+    "frozen",
+    "split",
+    "pageSetup"
   ],
   "dependencies": {
-    "archiver": "0.14.3",
+    "archiver": "0.15.0",
     "bluebird": "*",
     "fast-csv": "0.5.7",
-    "minimatch": "^3.0.3",
+    "lodash": "^4.16.2",
     "moment": "2.11.2",
     "sax": "^0.6.0",
-    "underscore": "1.4.4",
     "unzip": "https://github.com/robinbullocks4rb/node-unzip-2/tarball/master"
   },
   "devDependencies": {
@@ -51,7 +51,8 @@
     "jshint": "*",
     "memorystream": "*",
     "mocha": "*",
-    "request": "*"
+    "request": "*",
+    "underscore": "1.4.4"
   },
   "scripts": {
     "test": "npm run unit-test && npm run integration-test && npm run end-to-end-test",
